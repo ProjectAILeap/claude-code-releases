@@ -16,6 +16,7 @@ const PLATFORMS = [
   { name: 'linux-arm64-musl', filename: 'claude', label: 'Linux (ARM64, musl)' },
   { name: 'linux-x64-musl', filename: 'claude', label: 'Linux (x64, musl)' },
   { name: 'win32-x64', filename: 'claude.exe', label: 'Windows (x64)' },
+  { name: 'win32-arm64', filename: 'claude.exe', label: 'Windows (ARM64)' },
 ];
 
 function formatBytes(bytes) {

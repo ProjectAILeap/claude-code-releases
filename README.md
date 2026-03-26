@@ -7,7 +7,7 @@
 ## 功能特性
 
 - 自动追踪 Claude Code 官方最新版本（每小时检查）
-- 支持全平台：macOS (ARM64/Intel)、Linux (x64/ARM64/musl)、Windows (x64)
+- 支持全平台：macOS (ARM64/Intel)、Linux (x64/ARM64/musl)、Windows (x64/ARM64)
 - 计算并发布每个二进制文件的 SHA-256 校验和
 - 提供 `sha256sums.txt` 供一键校验文件完整性
 
@@ -26,6 +26,7 @@
 | Linux (x64, musl) | `claude-<版本>-linux-x64-musl` |
 | Linux (ARM64, musl) | `claude-<版本>-linux-arm64-musl` |
 | Windows (x64) | `claude-<版本>-win32-x64.exe` |
+| Windows (ARM64) | `claude-<版本>-win32-arm64.exe` |
 
 ## 安装方法
 

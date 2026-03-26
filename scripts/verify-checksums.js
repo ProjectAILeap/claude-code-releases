@@ -17,6 +17,7 @@ const PLATFORMS = [
   { name: 'linux-arm64-musl', filename: 'claude' },
   { name: 'linux-x64-musl', filename: 'claude' },
   { name: 'win32-x64', filename: 'claude.exe' },
+  { name: 'win32-arm64', filename: 'claude.exe' },
 ];
 
 async function computeSHA256(filePath) {

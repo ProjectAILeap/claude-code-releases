@@ -29,14 +29,20 @@ check-version.js → download-installers.js → verify-checksums.js → create-r
 - 版本来源使用 GCS `latest` 频道（非 `stable`，两者版本号可能不同）
 - 并发触发时 create-release 自动处理 `already_exists` 冲突，不会报错退出
 
-## 手动触发
+## 常用命令
 
 ```bash
-# 最新版本
+# 运行测试
+npm test
+
+# 手动触发归档（最新版本）
 gh workflow run archive-versions.yml --repo ProjectAILeap/claude-code-releases
 
-# 指定版本
+# 手动触发归档（指定版本）
 gh workflow run archive-versions.yml \
   --repo ProjectAILeap/claude-code-releases \
   --field version=2.1.77
+
+# 查看运行状态
+gh run list --repo ProjectAILeap/claude-code-releases --limit 5
 ```

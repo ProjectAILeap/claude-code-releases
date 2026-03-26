@@ -96,6 +96,13 @@ async function createRelease(octokit, owner, repo, version, body) {
     console.log(chalk.green(`✅ Release created: ${response.data.html_url}`));
     return response.data;
   } catch (error) {
+    // 并发触发时可能已被其他 run 创建，直接获取已有 release
+    if (error.status === 422 && error.message.includes('already_exists')) {
+      console.log(chalk.yellow(`⚠️  Release v${version} already exists, fetching existing release...`));
+      const existing = await octokit.rest.repos.getReleaseByTag({ owner, repo, tag: `v${version}` });
+      console.log(chalk.green(`✅ Using existing release: ${existing.data.html_url}`));
+      return existing.data;
+    }
     console.error(chalk.red(`❌ Error creating release: ${error.message}`));
     throw error;
   }

@@ -1,0 +1,140 @@
+name: Archive Claude Code Versions
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Specific version to archive (optional)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  check-new-version:
+    name: Check for new version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.manual.outputs.version || steps.check.outputs.version }}
+      needs-archive: ${{ steps.manual.outputs.needs-archive || steps.check.outputs.needs-archive }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check for new version
+        id: check
+        if: github.event.inputs.version == ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node scripts/check-version.js || true
+        continue-on-error: true
+
+      - name: Set manual version
+        id: manual
+        if: github.event.inputs.version != ''
+        run: |
+          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          echo "needs-archive=true" >> $GITHUB_OUTPUT
+
+  download-and-verify:
+    name: Download and verify installers
+    runs-on: ubuntu-latest
+    needs: check-new-version
+    if: needs.check-new-version.outputs.needs-archive == 'true'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download installers
+        run: |
+          node scripts/download-installers.js ${{ needs.check-new-version.outputs.version }}
+
+      - name: Verify checksums
+        run: |
+          node scripts/verify-checksums.js ${{ needs.check-new-version.outputs.version }}
+
+      - name: Upload downloads as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-code-${{ needs.check-new-version.outputs.version }}
+          path: downloads/${{ needs.check-new-version.outputs.version }}
+          retention-days: 1
+
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [check-new-version, download-and-verify]
+    if: needs.check-new-version.outputs.needs-archive == 'true'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: claude-code-${{ needs.check-new-version.outputs.version }}
+          path: downloads/${{ needs.check-new-version.outputs.version }}
+
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node scripts/create-release.js ${{ needs.check-new-version.outputs.version }}
+
+  update-site:
+    name: Update GitHub Pages
+    runs-on: ubuntu-latest
+    needs: [check-new-version, create-release]
+    if: needs.check-new-version.outputs.needs-archive == 'true'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Trigger Pages deployment
+        run: |
+          echo "Site will be auto-deployed from /site directory"
+          echo "New version archived: ${{ needs.check-new-version.outputs.version }}"
+
+  notify-completion:
+    name: Notify completion
+    runs-on: ubuntu-latest
+    needs: [check-new-version, update-site]
+    if: always() && needs.check-new-version.outputs.needs-archive == 'true'
+    steps:
+      - name: Summary
+        run: |
+          echo "✅ Claude Code v${{ needs.check-new-version.outputs.version }} has been archived"
+          echo "🔗 Check releases: ${{ github.server_url }}/${{ github.repository }}/releases"

@@ -97,11 +97,18 @@ async function createRelease(octokit, owner, repo, version, body) {
     console.log(chalk.green(`✅ Release created: ${response.data.html_url}`));
     return response.data;
   } catch (error) {
-    // 并发触发时可能已被其他 run 创建，直接获取已有 release
+    // 并发触发时可能已被其他 run 创建，直接获取已有 release 并更新 body
     if (error.status === 422 && error.message.includes('already_exists')) {
-      console.log(chalk.yellow(`⚠️  Release v${version} already exists, fetching existing release...`));
+      console.log(chalk.yellow(`⚠️  Release v${version} already exists, updating release body...`));
       const existing = await octokit.rest.repos.getReleaseByTag({ owner, repo, tag: `v${version}` });
-      console.log(chalk.green(`✅ Using existing release: ${existing.data.html_url}`));
+      // 更新 release body 以反映最新平台列表
+      await octokit.rest.repos.updateRelease({
+        owner,
+        repo,
+        release_id: existing.data.id,
+        body,
+      });
+      console.log(chalk.green(`✅ Updated existing release: ${existing.data.html_url}`));
       return existing.data;
     }
     console.error(chalk.red(`❌ Error creating release: ${error.message}`));
@@ -124,8 +131,13 @@ async function uploadAsset(octokit, owner, repo, releaseId, filePath, assetName)
     });
 
     console.log(chalk.green(`✅ Uploaded ${assetName} (${formatBytes(data.length)})`));
-    return response.data;
+    return { status: 'uploaded', data: response.data };
   } catch (error) {
+    // 已存在的 asset 视为成功（跳过），不阻断流程
+    if (error.status === 422 && error.message.includes('already_exists')) {
+      console.log(chalk.yellow(`⏭️  ${assetName} already exists, skipping`));
+      return { status: 'skipped' };
+    }
     console.error(chalk.red(`❌ Error uploading ${assetName}: ${error.message}`));
     throw error;
   }
@@ -190,8 +202,8 @@ async function main() {
     const assetName = `claude-${version}-${platform.name}${platform.filename === 'claude.exe' ? '.exe' : ''}`;
 
     try {
-      await uploadAsset(octokit, owner, repo, release.id, filePath, assetName);
-      uploads.push({ platform: platform.name, success: true });
+      const result = await uploadAsset(octokit, owner, repo, release.id, filePath, assetName);
+      uploads.push({ platform: platform.name, success: true, status: result.status });
     } catch (error) {
       uploads.push({ platform: platform.name, success: false, error: error.message });
     }
@@ -215,6 +227,19 @@ async function main() {
     }
     const sha256FilePath = join(downloadDir, 'sha256sums.txt');
     await writeFile(sha256FilePath, txt);
+
+    // 如果 sha256sums.txt 已存在，先删除再上传（确保包含最新平台列表）
+    try {
+      const existingAssets = await octokit.rest.repos.listReleaseAssets({
+        owner, repo, release_id: release.id, per_page: 100,
+      });
+      const oldSha = existingAssets.data.find(a => a.name === 'sha256sums.txt');
+      if (oldSha) {
+        await octokit.rest.repos.deleteReleaseAsset({ owner, repo, asset_id: oldSha.id });
+        console.log(chalk.yellow(`🔄 Replaced existing sha256sums.txt`));
+      }
+    } catch { /* ignore */ }
+
     try {
       await uploadAsset(octokit, owner, repo, release.id, sha256FilePath, 'sha256sums.txt');
       uploads.push({ platform: 'sha256sums.txt', success: true });
@@ -227,8 +252,11 @@ async function main() {
   console.log(chalk.bold(`\n📋 Upload Summary:`));
   const successful = uploads.filter(u => u.success);
   const failed = uploads.filter(u => !u.success);
+  const uploaded = successful.filter(u => u.status === 'uploaded');
+  const skipped = successful.filter(u => u.status === 'skipped');
 
-  console.log(chalk.green(`✅ Successful: ${successful.length}/${uploads.length}`));
+  if (uploaded.length > 0) console.log(chalk.green(`✅ Uploaded: ${uploaded.length}`));
+  if (skipped.length > 0) console.log(chalk.yellow(`⏭️  Skipped (already exist): ${skipped.length}`));
 
   if (failed.length > 0) {
     console.log(chalk.red(`❌ Failed: ${failed.length}`));

@@ -7,9 +7,9 @@ const GCS_BUCKET = 'https://storage.googleapis.com/claude-code-dist-86c565f3-f75
 
 async function fetchStableVersion() {
   try {
-    const response = await fetch(`${GCS_BUCKET}/stable`);
+    const response = await fetch(`${GCS_BUCKET}/latest`);
     if (!response.ok) {
-      throw new Error(`Failed to fetch stable version: ${response.statusText}`);
+      throw new Error(`Failed to fetch latest version: ${response.statusText}`);
     }
     const version = (await response.text()).trim();
     console.log(chalk.blue(`📦 Current  version: ${version}`));

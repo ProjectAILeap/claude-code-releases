@@ -27,12 +27,12 @@ jobs:
       needs-archive: ${{ steps.manual.outputs.needs-archive || steps.check.outputs.needs-archive }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies
@@ -60,12 +60,12 @@ jobs:
     needs: check-new-version
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies
@@ -81,12 +81,12 @@ jobs:
     if: needs.check-new-version.outputs.needs-archive == 'true'
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies
@@ -101,7 +101,7 @@ jobs:
           node scripts/verify-checksums.js ${{ needs.check-new-version.outputs.version }}
 
       - name: Upload downloads as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: claude-code-${{ needs.check-new-version.outputs.version }}
           path: downloads/${{ needs.check-new-version.outputs.version }}
@@ -114,19 +114,19 @@ jobs:
     if: needs.check-new-version.outputs.needs-archive == 'true'
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: claude-code-${{ needs.check-new-version.outputs.version }}
           path: downloads/${{ needs.check-new-version.outputs.version }}
@@ -144,7 +144,7 @@ jobs:
     if: needs.check-new-version.outputs.needs-archive == 'true'
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Trigger Pages deployment
         run: |

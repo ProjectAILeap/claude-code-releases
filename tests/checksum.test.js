@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { writeFile, readFile, mkdir, rm } from 'node:fs/promises';
+import { writeFile, readFile, mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -18,9 +18,12 @@ function computeSHA256(filePath) {
   });
 }
 
+async function createTempDir() {
+  return mkdtemp(join(tmpdir(), 'ccr-test-'));
+}
+
 test('computeSHA256 对已知内容返回正确 hash', async () => {
-  const dir = join(tmpdir(), `ccr-test-${Date.now()}`);
-  await mkdir(dir, { recursive: true });
+  const dir = await createTempDir();
 
   const content = Buffer.from('hello claude');
   const filePath = join(dir, 'test.bin');
@@ -34,8 +37,7 @@ test('computeSHA256 对已知内容返回正确 hash', async () => {
 });
 
 test('computeSHA256 对空文件返回确定性 hash', async () => {
-  const dir = join(tmpdir(), `ccr-test-${Date.now()}`);
-  await mkdir(dir, { recursive: true });
+  const dir = await createTempDir();
 
   const filePath = join(dir, 'empty.bin');
   await writeFile(filePath, Buffer.alloc(0));
@@ -47,8 +49,7 @@ test('computeSHA256 对空文件返回确定性 hash', async () => {
 });
 
 test('checksums.json 包含所有平台且格式正确', async () => {
-  const dir = join(tmpdir(), `ccr-test-${Date.now()}`);
-  await mkdir(dir, { recursive: true });
+  const dir = await createTempDir();
 
   // 模拟 verify-checksums.js 写入 checksums.json 的逻辑
   const platforms = ['darwin-arm64', 'linux-x64', 'win32-x64'];
@@ -70,8 +71,7 @@ test('checksums.json 包含所有平台且格式正确', async () => {
 });
 
 test('不同内容的文件产生不同 hash', async () => {
-  const dir = join(tmpdir(), `ccr-test-${Date.now()}`);
-  await mkdir(dir, { recursive: true });
+  const dir = await createTempDir();
 
   const file1 = join(dir, 'a.bin');
   const file2 = join(dir, 'b.bin');

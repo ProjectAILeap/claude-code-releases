@@ -1,7 +1,7 @@
 // 测试 release body 生成与 already_exists 容错
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { writeFile, mkdir, rm, stat } from 'node:fs/promises';
+import { writeFile, mkdtemp, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
@@ -46,9 +46,12 @@ async function generateReleaseBody(version, manifest, downloadDir, computedCheck
   return body;
 }
 
+async function createTempDir() {
+  return mkdtemp(join(tmpdir(), 'ccr-test-'));
+}
+
 test('generateReleaseBody 包含版本号标题', async () => {
-  const dir = join(tmpdir(), `ccr-test-${Date.now()}`);
-  await mkdir(dir, { recursive: true });
+  const dir = await createTempDir();
 
   const body = await generateReleaseBody('2.1.84', {}, dir, {});
   assert.ok(body.includes('## Claude Code v2.1.84'));
@@ -57,8 +60,7 @@ test('generateReleaseBody 包含版本号标题', async () => {
 });
 
 test('generateReleaseBody 包含下载表格头', async () => {
-  const dir = join(tmpdir(), `ccr-test-${Date.now()}`);
-  await mkdir(dir, { recursive: true });
+  const dir = await createTempDir();
 
   const body = await generateReleaseBody('2.1.84', {}, dir, {});
   assert.ok(body.includes('| 平台 | 文件 | 大小 | SHA-256 校验和 |'));
@@ -67,8 +69,7 @@ test('generateReleaseBody 包含下载表格头', async () => {
 });
 
 test('generateReleaseBody 有 checksums 时显示前16位 hash', async () => {
-  const dir = join(tmpdir(), `ccr-test-${Date.now()}`);
-  await mkdir(dir, { recursive: true });
+  const dir = await createTempDir();
 
   // 创建假文件
   for (const p of PLATFORMS) {
@@ -88,8 +89,7 @@ test('generateReleaseBody 有 checksums 时显示前16位 hash', async () => {
 });
 
 test('generateReleaseBody 无 checksums 时显示 N/A', async () => {
-  const dir = join(tmpdir(), `ccr-test-${Date.now()}`);
-  await mkdir(dir, { recursive: true });
+  const dir = await createTempDir();
 
   for (const p of PLATFORMS) {
     await writeFile(join(dir, `${p.name}-${p.filename}`), 'fake');

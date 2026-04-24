@@ -1,0 +1,20 @@
+name: Keepalive
+
+on:
+  schedule:
+    - cron: '0 0 1 * *'
+  workflow_dispatch:
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Push keepalive commit
+        run: |
+          git config user.name "ProjectAILeap"
+          git config user.email "projectaileap@gmail.com"
+          date -u > .keepalive
+          git add .keepalive
+          git commit -m "chore: keepalive [skip ci]"
+          git push

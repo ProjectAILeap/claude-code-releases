@@ -2,11 +2,11 @@
 
 自动归档 Claude Code 官方二进制文件，供无法直接访问官方源的用户下载使用。
 
-每小时自动检测新版本，发现更新后自动下载、校验并发布到 GitHub Releases。
+每 4 小时自动检测新版本，发现更新后自动下载、校验并发布到 GitHub Releases。
 
 ## 功能特性
 
-- 自动追踪 Claude Code 官方最新版本（每小时检查）
+- 自动追踪 Claude Code 官方最新版本（每 4 小时检查）
 - 支持全平台：macOS (ARM64/Intel)、Linux (x64/ARM64/musl)、Windows (x64/ARM64)
 - 计算并发布每个二进制文件的 SHA-256 校验和
 - 提供 `sha256sums.txt` 供一键校验文件完整性
@@ -75,7 +75,7 @@ Get-FileHash claude-<版本>-win32-x64.exe -Algorithm SHA256
 ## 工作原理
 
 ```
-每小时触发
+每 4 小时触发
     │
     ▼
 check-version.js     检查 GCS 官方源是否有新版本

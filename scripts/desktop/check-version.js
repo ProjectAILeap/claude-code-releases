@@ -54,6 +54,7 @@ async function fetchPlatformInfo(platform) {
 
 async function fetchLatestVersion() {
   const results = [];
+  const failures = [];
 
   for (const platform of PLATFORMS) {
     try {
@@ -61,15 +62,24 @@ async function fetchLatestVersion() {
       console.log(chalk.gray(`   ${platform.os}/${platform.arch}: v${info.version}`));
       results.push({ ...platform, ...info });
     } catch (error) {
-      console.error(chalk.red(`❌ Failed to fetch ${platform.os}/${platform.arch}: ${error.message}`));
-      process.exit(1);
+      console.log(chalk.yellow(`⚠️  ${platform.os}/${platform.arch}: ${error.message}`));
+      failures.push(platform);
     }
+  }
+
+  if (results.length === 0) {
+    console.error(chalk.red(`❌ Failed to fetch version from any platform`));
+    process.exit(1);
   }
 
   const versions = [...new Set(results.map(r => r.version))];
   if (versions.length !== 1) {
     console.error(chalk.red(`❌ Version mismatch across platforms: ${versions.join(', ')}`));
     process.exit(1);
+  }
+
+  if (failures.length > 0) {
+    console.log(chalk.yellow(`⚠️  ${failures.length} platform(s) failed API check, will use redirect at download time`));
   }
 
   return { version: versions[0], platforms: results };

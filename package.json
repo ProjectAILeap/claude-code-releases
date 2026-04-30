@@ -8,7 +8,11 @@
     "check": "node scripts/check-version.js",
     "download": "node scripts/download-installers.js",
     "verify": "node scripts/verify-checksums.js",
-    "release": "node scripts/create-release.js"
+    "release": "node scripts/create-release.js",
+    "desktop:check": "node scripts/desktop/check-version.js",
+    "desktop:download": "node scripts/desktop/download-installers.js",
+    "desktop:verify": "node scripts/desktop/verify-checksums.js",
+    "desktop:release": "node scripts/desktop/create-release.js"
   },
   "keywords": ["claude-code", "archiver", "releases"],
   "author": "",

@@ -9,7 +9,7 @@ import chalk from 'chalk';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const API_BASE = 'https://claude.ai/api/desktop';
-const USER_AGENT = 'Claude/0.0.0';
+const USER_AGENT = 'Claude/1.0.0';
 
 const PLATFORMS = [
   { os: 'darwin', arch: 'universal', format: 'dmg', label: 'macOS (Universal)', assetName: 'Claude', assetExt: '.dmg' },
@@ -33,15 +33,32 @@ async function sleep(ms) {
 }
 
 async function fetchDownloadUrl(platform) {
-  const url = `${API_BASE}/${platform.os}/${platform.arch}/${platform.format}/latest`;
-  const response = await fetch(url, {
+  const jsonUrl = `${API_BASE}/${platform.os}/${platform.arch}/${platform.format}/latest`;
+
+  // Strategy 1: JSON API
+  try {
+    const response = await fetch(jsonUrl, {
+      headers: { 'User-Agent': USER_AGENT, 'Accept': 'application/json' },
+    });
+    if (response.ok) {
+      const data = await response.json();
+      return data.url;
+    }
+  } catch { /* fall through */ }
+
+  // Strategy 2: redirect endpoint
+  const redirectUrl = `${jsonUrl}/redirect`;
+  const response = await fetch(redirectUrl, {
     headers: { 'User-Agent': USER_AGENT },
+    redirect: 'manual',
   });
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+
+  const location = response.headers.get('location');
+  if (!location) {
+    throw new Error(`Cannot get download URL for ${platform.os}/${platform.arch} (HTTP ${response.status})`);
   }
-  const data = await response.json();
-  return data.url;
+
+  return location;
 }
 
 async function downloadFile(url, outputPath, retries = MAX_RETRIES) {

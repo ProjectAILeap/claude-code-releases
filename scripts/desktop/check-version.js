@@ -9,7 +9,7 @@ import chalk from 'chalk';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const API_BASE = 'https://claude.ai/api/desktop';
-const USER_AGENT = 'Claude/0.0.0';
+const USER_AGENT = 'Claude/1.0.0';
 
 const PLATFORMS = [
   { os: 'darwin', arch: 'universal', format: 'dmg' },
@@ -17,21 +17,49 @@ const PLATFORMS = [
   { os: 'win32', arch: 'arm64', format: 'setup' },
 ];
 
+async function fetchPlatformInfo(platform) {
+  const jsonUrl = `${API_BASE}/${platform.os}/${platform.arch}/${platform.format}/latest`;
+
+  // Strategy 1: JSON API endpoint
+  try {
+    const response = await fetch(jsonUrl, {
+      headers: { 'User-Agent': USER_AGENT, 'Accept': 'application/json' },
+    });
+    if (response.ok) {
+      const data = await response.json();
+      return { version: data.version, downloadUrl: data.url };
+    }
+  } catch { /* fall through to redirect strategy */ }
+
+  // Strategy 2: redirect endpoint — parse version from Location header
+  const redirectUrl = `${jsonUrl}/redirect`;
+  const response = await fetch(redirectUrl, {
+    headers: { 'User-Agent': USER_AGENT },
+    redirect: 'manual',
+  });
+
+  const location = response.headers.get('location');
+  if (!location) {
+    throw new Error(`No redirect location from ${redirectUrl} (HTTP ${response.status})`);
+  }
+
+  // URL pattern: https://downloads.claude.ai/releases/{os}/{arch}/{version}/{filename}
+  const match = location.match(/\/releases\/[^/]+\/[^/]+\/([^/]+)\//);
+  if (!match) {
+    throw new Error(`Cannot parse version from redirect URL: ${location}`);
+  }
+
+  return { version: match[1], downloadUrl: location };
+}
+
 async function fetchLatestVersion() {
   const results = [];
 
   for (const platform of PLATFORMS) {
-    const url = `${API_BASE}/${platform.os}/${platform.arch}/${platform.format}/latest`;
     try {
-      const response = await fetch(url, {
-        headers: { 'User-Agent': USER_AGENT },
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      const data = await response.json();
-      console.log(chalk.gray(`   ${platform.os}/${platform.arch}: v${data.version}`));
-      results.push({ ...platform, version: data.version, downloadUrl: data.url });
+      const info = await fetchPlatformInfo(platform);
+      console.log(chalk.gray(`   ${platform.os}/${platform.arch}: v${info.version}`));
+      results.push({ ...platform, ...info });
     } catch (error) {
       console.error(chalk.red(`❌ Failed to fetch ${platform.os}/${platform.arch}: ${error.message}`));
       process.exit(1);

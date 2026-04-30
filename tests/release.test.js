@@ -19,7 +19,7 @@ const PLATFORMS = [
 
 // 与 create-release.js 中相同的 release body 生成逻辑
 async function generateReleaseBody(version, manifest, downloadDir, computedChecksums) {
-  let body = `## Claude Code v${version}\n\n`;
+  let body = `> **CLI** | Claude Code 命令行工具 | Tag: \`v${version}\`\n\n`;
 
   if (manifest.buildDate || manifest.timestamp) {
     const date = new Date(manifest.buildDate || manifest.timestamp).toISOString().split('T')[0];
@@ -54,7 +54,7 @@ test('generateReleaseBody 包含版本号标题', async () => {
   const dir = await createTempDir();
 
   const body = await generateReleaseBody('2.1.84', {}, dir, {});
-  assert.ok(body.includes('## Claude Code v2.1.84'));
+  assert.ok(body.includes('**CLI** | Claude Code 命令行工具'));
 
   await rm(dir, { recursive: true, force: true });
 });

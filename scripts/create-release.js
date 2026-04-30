@@ -24,7 +24,7 @@ function formatBytes(bytes) {
 }
 
 async function generateReleaseBody(version, manifest, downloadDir, computedChecksums) {
-  let body = `## Claude Code v${version}\n\n`;
+  let body = `> **CLI** | Claude Code 命令行工具 | Tag: \`v${version}\`\n\n`;
 
   if (manifest.buildDate || manifest.timestamp) {
     const date = new Date(manifest.buildDate || manifest.timestamp).toISOString().split('T')[0];
@@ -88,7 +88,7 @@ async function createRelease(octokit, owner, repo, version, body) {
       owner,
       repo,
       tag_name: `v${version}`,
-      name: `Claude Code v${version}`,
+      name: `[CLI] Claude Code v${version}`,
       body,
       draft: false,
       prerelease: false,

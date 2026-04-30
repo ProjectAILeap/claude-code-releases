@@ -1,21 +1,22 @@
 # Claude Code Releases
 
-自动归档 Claude Code 官方二进制文件，供无法直接访问官方源的用户下载使用。
+自动归档 Claude 官方二进制文件，供无法直接访问官方源的用户下载使用。
 
-每 4 小时自动检测新版本，发现更新后自动下载、校验并发布到 GitHub Releases。
+本仓库归档两类产品：
 
-## 功能特性
-
-- 自动追踪 Claude Code 官方最新版本（每 4 小时检查）
-- 支持全平台：macOS (ARM64/Intel)、Linux (x64/ARM64/musl)、Windows (x64/ARM64)
-- 计算并发布每个二进制文件的 SHA-256 校验和
-- 提供 `sha256sums.txt` 供一键校验文件完整性
+| 产品 | 说明 | Tag 前缀 | 检查频率 |
+|------|------|----------|----------|
+| **Claude Code CLI** | 命令行开发工具 | `v` | 每 4 小时 |
+| **Claude Desktop App** | 桌面客户端（Electron） | `desktop-v` | 每 4 小时 |
 
 ## 下载
 
-前往 [Releases](../../releases) 页面，选择对应版本和平台下载。
+前往 [Releases](../../releases) 页面，按 Tag 前缀区分产品：
 
-文件命名规则：
+- **CLI 版本**：Tag 以 `v` 开头，如 `v2.1.123`
+- **Desktop 版本**：Tag 以 `desktop-v` 开头，如 `desktop-v1.5354.0`
+
+### Claude Code CLI
 
 | 平台 | 文件名 |
 |------|--------|
@@ -28,75 +29,96 @@
 | Windows (x64) | `claude-<版本>-win32-x64.exe` |
 | Windows (ARM64) | `claude-<版本>-win32-arm64.exe` |
 
+### Claude Desktop App
+
+| 平台 | 文件名 |
+|------|--------|
+| macOS (Universal) | `Claude-<版本>-darwin-universal.dmg` |
+| Windows (x64) | `ClaudeSetup-<版本>-win32-x64.exe` |
+| Windows (ARM64) | `ClaudeSetup-<版本>-win32-arm64.exe` |
+
+> Desktop App 目前无 Linux 版本。
+
 ## 安装方法
 
-### 推荐：官方安装器
+### Claude Code CLI
 
-如果能访问官方源，优先使用官方安装器：
+**推荐：官方安装器**
 
 ```bash
 curl -fsSL https://claude.ai/install.sh | bash -s -- <版本号>
 ```
 
-### 备用：手动安装
-
-**macOS / Linux：**
+**备用：手动安装**
 
 ```bash
-# 下载对应平台的二进制文件后
+# macOS / Linux
 chmod +x claude-<版本>-<平台>
 ./claude-<版本>-<平台> install
+
+# Windows (PowerShell)
+.\claude-<版本>-win32-x64.exe install
 ```
 
-**Windows（PowerShell）：**
+### Claude Desktop App
+
+**macOS：**
+
+```bash
+# 下载 DMG 后双击安装，或命令行挂载
+hdiutil attach Claude-<版本>-darwin-universal.dmg
+cp -R "/Volumes/Claude/Claude.app" /Applications/
+hdiutil detach "/Volumes/Claude"
+```
+
+**Windows：**
 
 ```powershell
-.\claude-<版本>-win32-x64.exe install
+.\ClaudeSetup-<版本>-win32-x64.exe
 ```
 
 ## 验证文件完整性
 
 每个 Release 包含 `sha256sums.txt`，可用于校验下载文件是否完整：
 
-**Linux / macOS：**
-
 ```bash
+# Linux / macOS
 sha256sum -c sha256sums.txt
-```
 
-**Windows（PowerShell）：**
-
-```powershell
-Get-FileHash claude-<版本>-win32-x64.exe -Algorithm SHA256
+# Windows (PowerShell)
+Get-FileHash <文件名> -Algorithm SHA256
 ```
 
 将输出的 Hash 值与 Release 说明或 `sha256sums.txt` 中的值对比即可。
 
 ## 工作原理
 
+两条独立 pipeline，每 4 小时各自检查一次：
+
 ```
-每 4 小时触发
-    │
-    ▼
-check-version.js     检查 GCS 官方源是否有新版本
-    │ 有新版本
-    ▼
-download-installers.js   下载所有平台二进制 + manifest.json
-    │
-    ▼
-verify-checksums.js   计算 SHA-256，保存到 checksums.json
-    │
-    ▼
-create-release.js    创建 GitHub Release，上传二进制和 sha256sums.txt
+Claude Code CLI                           Claude Desktop App
+──────────────                             ──────────────────
+check-version.js                           desktop/check-version.js
+  │ 查询 GCS latest 频道                      │ 查询 claude.ai/api/desktop
+  ▼                                            ▼
+download-installers.js                     desktop/download-installers.js
+  │ 下载 8 平台二进制                          │ 下载 3 平台安装包
+  ▼                                            ▼
+verify-checksums.js                        desktop/verify-checksums.js
+  │ 计算 SHA-256                               │ 计算 SHA-256
+  ▼                                            ▼
+create-release.js                          desktop/create-release.js
+  │ 发布 Release (tag: v*)                     │ 发布 Release (tag: desktop-v*)
 ```
 
 ## 数据来源
 
-二进制文件直接从 Anthropic 官方 GCS 存储桶下载，未经任何修改。
+- **CLI**：二进制文件直接从 Anthropic 官方 GCS 存储桶下载，未经任何修改。
+- **Desktop App**：安装包通过 `downloads.claude.ai` CDN 下载，未经任何修改。
 
 ## 免责声明
 
-本仓库仅作镜像备份用途，与 Anthropic 官方无关。Claude Code 版权归 Anthropic 所有。
+本仓库仅作镜像备份用途，与 Anthropic 官方无关。Claude 版权归 Anthropic 所有。
 
 ## License
 

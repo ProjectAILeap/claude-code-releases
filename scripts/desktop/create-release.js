@@ -23,7 +23,7 @@ function assetFilename(version, platform) {
 }
 
 async function generateReleaseBody(version, downloadDir, computedChecksums) {
-  let body = `## Claude Desktop v${version}\n\n`;
+  let body = `> **Desktop App** | Claude 桌面客户端 | Tag: \`desktop-v${version}\`\n\n`;
 
   body += `### 下载\n\n`;
   body += `| 平台 | 文件 | 大小 | SHA-256 校验和 |\n`;
@@ -80,7 +80,7 @@ async function createRelease(octokit, owner, repo, version, body) {
       owner,
       repo,
       tag_name: `desktop-v${version}`,
-      name: `Claude Desktop v${version}`,
+      name: `[Desktop] Claude Desktop v${version}`,
       body,
       draft: false,
       prerelease: false,

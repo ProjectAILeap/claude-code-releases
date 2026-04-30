@@ -135,6 +135,16 @@ jobs:
         run: |
           node scripts/desktop/create-release.js ${{ needs.check-new-version.outputs.version }}
 
+      - name: Update README with latest version
+        run: |
+          git pull --rebase origin main
+          node scripts/update-readme-version.js desktop ${{ needs.check-new-version.outputs.version }}
+          git config user.name "ProjectAILeap"
+          git config user.email "projectaileap@gmail.com"
+          git add README.md
+          git diff --cached --quiet || git commit -m "docs: update Desktop latest version to v${{ needs.check-new-version.outputs.version }} [skip ci]"
+          git push origin main
+
   notify-completion:
     name: Notify completion
     runs-on: ubuntu-latest

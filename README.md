@@ -9,12 +9,16 @@
 | **Claude Code CLI** | 命令行开发工具 | `v` | 每 4 小时 |
 | **Claude Desktop App** | 桌面客户端（Electron） | `desktop-v` | 每 4 小时 |
 
-## 下载
+## 最新版本
 
-前往 [Releases](../../releases) 页面，按 Tag 前缀区分产品：
+<!-- LATEST_VERSIONS_START -->
+| 产品 | 最新版本 | 发布日期 | 下载 |
+|------|---------|----------|------|
+| **Claude Code CLI** | `v2.1.123` | 2026-04-30 | [Release](../../releases/tag/v2.1.123) |
+| **Claude Desktop App** | `v1.5354.0` | 2026-04-30 | [Release](../../releases/tag/desktop-v1.5354.0) |
+<!-- LATEST_VERSIONS_END -->
 
-- **CLI 版本**：Tag 以 `v` 开头，如 `v2.1.123`
-- **Desktop 版本**：Tag 以 `desktop-v` 开头，如 `desktop-v1.5354.0`
+前往 [Releases](../../releases) 页面查看所有历史版本。按 Tag 前缀区分：`v*` 为 CLI，`desktop-v*` 为 Desktop。
 
 ### Claude Code CLI
 

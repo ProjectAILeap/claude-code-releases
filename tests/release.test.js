@@ -1,107 +1,75 @@
-// 测试 release body 生成与 already_exists 容错
+// 测试 release body 生成（官方 changelog 注入）、CHANGELOG 段落提取与 already_exists 容错
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { writeFile, mkdtemp, rm, stat } from 'node:fs/promises';
-import { join } from 'node:path';
-import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 
-const PLATFORMS = [
-  { name: 'darwin-arm64', filename: 'claude', label: 'macOS (ARM64)' },
-  { name: 'darwin-x64',   filename: 'claude', label: 'macOS (Intel)' },
-  { name: 'linux-arm64',  filename: 'claude', label: 'Linux (ARM64)' },
-  { name: 'linux-x64',    filename: 'claude', label: 'Linux (x64)' },
-  { name: 'linux-arm64-musl', filename: 'claude', label: 'Linux (ARM64, musl)' },
-  { name: 'linux-x64-musl',   filename: 'claude', label: 'Linux (x64, musl)' },
-  { name: 'win32-x64',    filename: 'claude.exe', label: 'Windows (x64)' },
-  { name: 'win32-arm64',  filename: 'claude.exe', label: 'Windows (ARM64)' },
-];
+import {
+  generateReleaseBody,
+  extractChangelogSection,
+  PLATFORMS,
+} from '../scripts/create-release.js';
 
-// 与 create-release.js 中相同的 release body 生成逻辑
-async function generateReleaseBody(version, manifest, downloadDir, computedChecksums) {
-  let body = `> **CLI** | Claude Code 命令行工具 | Tag: \`v${version}\`\n\n`;
+const SAMPLE_CHANGELOG = `# Changelog
 
-  if (manifest.buildDate || manifest.timestamp) {
-    const date = new Date(manifest.buildDate || manifest.timestamp).toISOString().split('T')[0];
-    body += `**构建日期：** ${date}\n\n`;
-  }
+## 2.1.100
 
-  body += `### 下载\n\n`;
-  body += `| 平台 | 文件 | 大小 | SHA-256 校验和 |\n`;
-  body += `|------|------|------|----------------|\n`;
+- Fixed a bug
+- Improved performance
 
-  for (const platform of PLATFORMS) {
-    const filePath = join(downloadDir, `${platform.name}-${platform.filename}`);
-    const assetName = `claude-${version}-${platform.name}${platform.filename === 'claude.exe' ? '.exe' : ''}`;
+### Subsection
 
-    try {
-      const stats = await stat(filePath);
-      const size = (stats.size / 1024 / 1024).toFixed(2) + ' MB';
-      const checksum = computedChecksums[platform.name] || 'N/A';
-      const shortChecksum = checksum !== 'N/A' ? `\`${checksum.substring(0, 16)}...\`` : 'N/A';
-      body += `| ${platform.label} | \`${assetName}\` | ${size} | ${shortChecksum} |\n`;
-    } catch {}
-  }
+- Extra item
 
-  return body;
-}
+## 2.1.99
 
-async function createTempDir() {
-  return mkdtemp(join(tmpdir(), 'ccr-test-'));
-}
+- Older item
+`;
 
-test('generateReleaseBody 包含版本号标题', async () => {
-  const dir = await createTempDir();
+test('generateReleaseBody 注入官方 changelog', () => {
+  const body = generateReleaseBody('2.1.100', {
+    content: "## What's changed\n\n- Fixed a bug\n- Improved performance",
+    sourceUrl: 'https://github.com/anthropics/claude-code/releases/tag/v2.1.100',
+  });
 
-  const body = await generateReleaseBody('2.1.84', {}, dir, {});
-  assert.ok(body.includes('**CLI** | Claude Code 命令行工具'));
-
-  await rm(dir, { recursive: true, force: true });
+  assert.ok(body.includes('**CLI** | Claude Code v2.1.100 更新内容'));
+  assert.ok(body.includes('https://github.com/anthropics/claude-code/releases/tag/v2.1.100'));
+  assert.ok(body.includes('- Fixed a bug'));
+  assert.ok(body.includes('- Improved performance'));
 });
 
-test('generateReleaseBody 包含下载表格头', async () => {
-  const dir = await createTempDir();
+test('generateReleaseBody 不再包含下载表和安装方法', () => {
+  const body = generateReleaseBody('2.1.100', {
+    content: '- Fixed a bug',
+    sourceUrl: 'https://github.com/anthropics/claude-code/releases/tag/v2.1.100',
+  });
 
-  const body = await generateReleaseBody('2.1.84', {}, dir, {});
-  assert.ok(body.includes('| 平台 | 文件 | 大小 | SHA-256 校验和 |'));
-
-  await rm(dir, { recursive: true, force: true });
+  assert.ok(!body.includes('| 平台 | 文件 | 大小 | SHA-256 校验和 |'));
+  assert.ok(!body.includes('### 安装方法'));
+  assert.ok(!body.includes('构建日期'));
 });
 
-test('generateReleaseBody 有 checksums 时显示前16位 hash', async () => {
-  const dir = await createTempDir();
+test('generateReleaseBody 无 changelog 时给出占位说明', () => {
+  const body = generateReleaseBody('2.1.100', null);
 
-  // 创建假文件
-  for (const p of PLATFORMS) {
-    await writeFile(join(dir, `${p.name}-${p.filename}`), 'fake-binary-content');
-  }
-
-  const checksums = {};
-  for (const p of PLATFORMS) {
-    checksums[p.name] = createHash('sha256').update(p.name).digest('hex');
-  }
-
-  const body = await generateReleaseBody('2.1.84', {}, dir, checksums);
-  assert.ok(!body.includes('| N/A |'), 'checksums 存在时不应显示 N/A');
-  assert.ok(body.includes('...`'), '应显示截断的 hash（前16位 + ...）');
-
-  await rm(dir, { recursive: true, force: true });
+  assert.ok(body.includes('**CLI** | Claude Code v2.1.100 更新内容'));
+  assert.ok(body.includes('暂未发布'));
 });
 
-test('generateReleaseBody 无 checksums 时显示 N/A', async () => {
-  const dir = await createTempDir();
+test('extractChangelogSection 提取对应版本段落并保留子标题', () => {
+  const section = extractChangelogSection(SAMPLE_CHANGELOG, '2.1.100');
 
-  for (const p of PLATFORMS) {
-    await writeFile(join(dir, `${p.name}-${p.filename}`), 'fake');
-  }
-
-  const body = await generateReleaseBody('2.1.84', {}, dir, {});
-  assert.ok(body.includes('N/A'), '无 checksums 时应显示 N/A');
-
-  await rm(dir, { recursive: true, force: true });
+  assert.ok(section.includes('- Fixed a bug'));
+  assert.ok(section.includes('- Improved performance'));
+  assert.ok(section.includes('### Subsection'));
+  assert.ok(section.includes('- Extra item'));
+  assert.ok(!section.includes('2.1.99'), '不应包含下一个版本的内容');
 });
 
-test('sha256sums.txt 格式符合 sha256sum -c 规范', async () => {
+test('extractChangelogSection 版本不存在时返回 null', () => {
+  assert.equal(extractChangelogSection(SAMPLE_CHANGELOG, '9.9.9'), null);
+});
+
+test('sha256sums.txt 格式符合 sha256sum -c 规范', () => {
   const checksums = {
     'linux-x64': 'a'.repeat(64),
     'darwin-arm64': 'b'.repeat(64),

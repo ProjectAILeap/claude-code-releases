@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 
 import { Octokit } from '@octokit/rest';
-import { readFile, stat, writeFile } from 'fs/promises';
+import { readFile, writeFile } from 'fs/promises';
 import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import chalk from 'chalk';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const PLATFORMS = [
+const OFFICIAL_REPO = 'anthropics/claude-code';
+const OFFICIAL_CHANGELOG_URL = 'https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md';
+
+export const PLATFORMS = [
   { name: 'darwin-arm64', filename: 'claude', label: 'macOS (ARM64)' },
   { name: 'darwin-x64', filename: 'claude', label: 'macOS (Intel)' },
   { name: 'linux-arm64', filename: 'claude', label: 'Linux (ARM64)' },
@@ -23,59 +26,79 @@ function formatBytes(bytes) {
   return (bytes / 1024 / 1024).toFixed(2) + ' MB';
 }
 
-async function generateReleaseBody(version, manifest, downloadDir, computedChecksums) {
-  let body = `> **CLI** | Claude Code 命令行工具 | Tag: \`v${version}\`\n\n`;
+// 从官方 CHANGELOG.md 提取指定版本段落（`## {version}` 到下一个 `## ` 之间，保留 `###` 子标题）
+export function extractChangelogSection(text, version) {
+  const lines = text.split('\n');
+  const heading = `## ${version}`;
+  const start = lines.findIndex((line) => line.trim() === heading);
+  if (start === -1) return null;
 
-  if (manifest.buildDate || manifest.timestamp) {
-    const date = new Date(manifest.buildDate || manifest.timestamp).toISOString().split('T')[0];
-    body += `**构建日期：** ${date}\n\n`;
+  const section = [];
+  for (let i = start + 1; i < lines.length; i++) {
+    const line = lines[i];
+    // 下一个同级别 `## ` 标题即本段结束（`###` 子标题不属于此条件）
+    if (/^##\s/.test(line)) break;
+    section.push(line);
   }
+  const content = section.join('\n').trim();
+  return content || null;
+}
 
-  body += `### 下载\n\n`;
-  body += `| 平台 | 文件 | 大小 | SHA-256 校验和 |\n`;
-  body += `|------|------|------|----------------|\n`;
+// 拉取官方更新内容：优先官方 GitHub Release body，回退到 CHANGELOG.md 对应段落
+export async function fetchOfficialChangelog(version, token) {
+  const releaseUrl = `https://api.github.com/repos/${OFFICIAL_REPO}/releases/tags/v${version}`;
+  const headers = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
+  if (token) headers.Authorization = `Bearer ${token}`;
 
-  for (const platform of PLATFORMS) {
-    const filePath = join(downloadDir, `${platform.name}-${platform.filename}`);
-    const assetName = `claude-${version}-${platform.name}${platform.filename === 'claude.exe' ? '.exe' : ''}`;
-
+  // 官方 Release 可能晚于 GCS latest 发布，稍作等待后重试
+  for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const stats = await stat(filePath);
-      const size = formatBytes(stats.size);
-      const checksum = computedChecksums[platform.name] || 'N/A';
-      const shortChecksum = checksum !== 'N/A' ? `\`${checksum.substring(0, 16)}...\`` : 'N/A';
-
-      body += `| ${platform.label} | \`${assetName}\` | ${size} | ${shortChecksum} |\n`;
-    } catch (error) {
-      console.log(chalk.yellow(`⚠️  Warning: Could not stat ${platform.name}`));
-    }
+      const response = await fetch(releaseUrl, { headers });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.body && data.body.trim()) {
+          return {
+            content: data.body.trim(),
+            sourceUrl: `https://github.com/${OFFICIAL_REPO}/releases/tag/v${version}`,
+          };
+        }
+      }
+    } catch { /* 网络抖动，重试 */ }
+    if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 2000));
   }
 
-  body += `\n### 安装方法\n\n`;
-  body += `#### ✅ 推荐：使用官方安装器\n\n`;
-  body += `\`\`\`bash\n`;
-  body += `curl -fsSL https://claude.ai/install.sh | bash -s -- ${version}\n`;
-  body += `\`\`\`\n\n`;
-  body += `#### 📦 备用：从归档手动安装\n\n`;
-  body += `**macOS / Linux：**\n`;
-  body += `\`\`\`bash\n`;
-  body += `chmod +x claude-${version}-<platform>\n`;
-  body += `./claude-${version}-<platform> install\n`;
-  body += `\`\`\`\n\n`;
-  body += `**Windows：**\n`;
-  body += `\`\`\`powershell\n`;
-  body += `.\\claude-${version}-win32-x64.exe install\n`;
-  body += `\`\`\`\n\n`;
-  body += `#### 🔐 校验文件完整性\n\n`;
-  body += `下载 \`sha256sums.txt\` 后：\n\n`;
-  body += `\`\`\`bash\n`;
-  body += `# Linux / macOS\n`;
-  body += `sha256sum -c sha256sums.txt\n\n`;
-  body += `# Windows (PowerShell)\n`;
-  body += `Get-FileHash claude-${version}-win32-x64.exe -Algorithm SHA256\n`;
-  body += `\`\`\`\n\n`;
-  body += `---\n`;
-  body += `*本仓库为 Claude Code v${version} 的永久备份，供无法直接访问官方源的用户使用。最新版本请访问 [claude.ai](https://claude.ai)*\n`;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const response = await fetch(OFFICIAL_CHANGELOG_URL);
+      if (response.ok) {
+        const content = extractChangelogSection(await response.text(), version);
+        if (content) {
+          return {
+            content,
+            sourceUrl: `https://github.com/${OFFICIAL_REPO}/blob/main/CHANGELOG.md`,
+          };
+        }
+      }
+    } catch { /* 网络抖动，重试 */ }
+    if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+
+  return null;
+}
+
+// Release body 只保留官方更新内容（下载表/安装方法在 README 中，不再重复）
+export function generateReleaseBody(version, changelog) {
+  const releaseUrl = `https://github.com/${OFFICIAL_REPO}/releases/tag/v${version}`;
+  const sourceUrl = changelog?.sourceUrl || releaseUrl;
+
+  let body = `> **CLI** | Claude Code v${version} 更新内容\n`;
+  body += `> 来源：[anthropics/claude-code](${sourceUrl})\n\n`;
+
+  if (changelog?.content) {
+    body += changelog.content.trim() + '\n';
+  } else {
+    body += `官方更新日志暂未发布，可稍后重新触发本工作流自动补齐。\n`;
+  }
 
   return body;
 }
@@ -101,7 +124,6 @@ async function createRelease(octokit, owner, repo, version, body) {
     if (error.status === 422 && error.message.includes('already_exists')) {
       console.log(chalk.yellow(`⚠️  Release v${version} already exists, updating release body...`));
       const existing = await octokit.rest.repos.getReleaseByTag({ owner, repo, tag: `v${version}` });
-      // 更新 release body 以反映最新平台列表
       await octokit.rest.repos.updateRelease({
         owner,
         repo,
@@ -169,10 +191,9 @@ async function main() {
   const downloadDir = join(__dirname, '..', 'downloads', version);
   const manifestPath = join(downloadDir, 'manifest.json');
 
-  let manifest;
+  // 校验 downloads 目录完整性（manifest.json 由 download 步骤生成，随后作为 asset 上传）
   try {
-    const manifestContent = await readFile(manifestPath, 'utf-8');
-    manifest = JSON.parse(manifestContent);
+    await readFile(manifestPath, 'utf-8');
   } catch (error) {
     console.error(chalk.red(`❌ Failed to load manifest: ${error.message}`));
     process.exit(1);
@@ -189,9 +210,17 @@ async function main() {
     console.log(chalk.yellow(`⚠️  No checksums.json found, SHA-256 will show N/A`));
   }
 
-  const octokit = new Octokit({ auth: token });
+  // 拉取官方更新内容并写入 Release body
+  console.log(chalk.blue(`\n📝 Fetching official changelog for v${version}...`));
+  const changelog = await fetchOfficialChangelog(version, token);
+  if (changelog) {
+    console.log(chalk.green(`✅ Official changelog found (${changelog.content.length} chars)`));
+  } else {
+    console.log(chalk.yellow(`⚠️  Official changelog not available yet, writing placeholder note`));
+  }
 
-  const body = await generateReleaseBody(version, manifest, downloadDir, computedChecksums);
+  const octokit = new Octokit({ auth: token });
+  const body = generateReleaseBody(version, changelog);
   const release = await createRelease(octokit, owner, repo, version, body);
 
   console.log(chalk.bold(`\n📦 Uploading assets...\n`));
@@ -271,7 +300,10 @@ async function main() {
   console.log(chalk.blue(`🔗 ${release.html_url}`));
 }
 
-main().catch(error => {
-  console.error(chalk.red(`\n❌ Fatal error: ${error.message}`));
-  process.exit(1);
-});
+const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMain) {
+  main().catch(error => {
+    console.error(chalk.red(`\n❌ Fatal error: ${error.message}`));
+    process.exit(1);
+  });
+}

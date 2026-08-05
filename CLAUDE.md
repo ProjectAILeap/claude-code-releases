@@ -36,7 +36,7 @@ check-version.js → download-installers.js → verify-checksums.js → create-r
 | `scripts/check-version.js` | 从 GCS `latest` 频道获取 CLI 最新版本号 |
 | `scripts/download-installers.js` | 下载 CLI 所有平台二进制 + manifest.json |
 | `scripts/verify-checksums.js` | 计算 CLI 二进制 SHA-256 |
-| `scripts/create-release.js` | 创建 CLI Release，上传二进制和 `sha256sums.txt` |
+| `scripts/create-release.js` | 创建 CLI Release，自动注入官方 changelog，上传二进制和 `sha256sums.txt` |
 | `scripts/desktop/check-version.js` | 通过 API 获取 Desktop App 最新版本号 |
 | `scripts/desktop/download-installers.js` | 下载 Desktop App 3 个平台安装包 |
 | `scripts/desktop/verify-checksums.js` | 计算 Desktop App SHA-256 |
@@ -51,6 +51,7 @@ check-version.js → download-installers.js → verify-checksums.js → create-r
 - Desktop App 版本检测必须携带 `User-Agent: Claude/0.0.0`，否则被 Cloudflare 拦截
 - Desktop App 无 Linux 版本（API 明确拒绝）
 - 并发触发时 create-release 自动处理 `already_exists` 冲突，不会报错退出
+- Release body 只含官方更新内容：优先取 `anthropics/claude-code` 官方 Release，回退到 `CHANGELOG.md` 对应段落；官方尚未发布时写占位说明，手动重跑同版本工作流即可补齐
 - GitHub 会在仓库长期无 push 活动后自动挂起 scheduled workflow，keepalive.yml 每月提交一次规避此问题
 
 ## 常用命令

@@ -93,7 +93,7 @@ sha256sum -c sha256sums.txt
 Get-FileHash <文件名> -Algorithm SHA256
 ```
 
-将输出的 Hash 值与 Release 说明或 `sha256sums.txt` 中的值对比即可。
+将输出的 Hash 值与 `sha256sums.txt` 中的值对比即可。
 
 ## 工作原理
 

@@ -14,7 +14,7 @@
 <!-- LATEST_VERSIONS_START -->
 | 产品 | 最新版本 | 发布日期 | 下载 |
 |------|---------|----------|------|
-| **Claude Code CLI** | `v2.1.232` | 2026-08-14 | [Release](../../releases/tag/v2.1.232) |
+| **Claude Code CLI** | `v2.1.233` | 2026-08-15 | [Release](../../releases/tag/v2.1.233) |
 | **Claude Desktop App** | `v1.30096.1` | 2026-08-14 | [Release](../../releases/tag/desktop-v1.30096.1) |
 <!-- LATEST_VERSIONS_END -->
 

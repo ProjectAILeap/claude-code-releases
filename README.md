@@ -15,7 +15,7 @@
 | 产品 | 最新版本 | 发布日期 | 下载 |
 |------|---------|----------|------|
 | **Claude Code CLI** | `v2.1.280` | 2026-09-22 | [Release](../../releases/tag/v2.1.280) |
-| **Claude Desktop App** | `v2.2553.13` | 2026-09-22 | [Release](../../releases/tag/desktop-v2.2553.13) |
+| **Claude Desktop App** | `v2.7032.0` | 2026-09-23 | [Release](../../releases/tag/desktop-v2.7032.0) |
 <!-- LATEST_VERSIONS_END -->
 
 前往 [Releases](../../releases) 页面查看所有历史版本。按 Tag 前缀区分：`v*` 为 CLI，`desktop-v*` 为 Desktop。

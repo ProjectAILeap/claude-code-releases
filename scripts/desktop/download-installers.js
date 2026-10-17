@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import { createWriteStream } from 'fs';
-import { mkdir, readFile, writeFile } from 'fs/promises';
+import { mkdir, readFile, writeFile, rename } from 'fs/promises';
+import { createHash } from 'crypto';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import chalk from 'chalk';
@@ -69,6 +70,10 @@ async function downloadFile(url, outputPath, retries = MAX_RETRIES) {
         await sleep(RETRY_DELAY * attempt);
       }
 
+      if (!url.startsWith('https://')) {
+        throw new Error(`Refusing to download over insecure transport: ${url}`);
+      }
+
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -77,7 +82,11 @@ async function downloadFile(url, outputPath, retries = MAX_RETRIES) {
       const contentLength = response.headers.get('content-length');
       const totalSize = contentLength ? parseInt(contentLength, 10) : 0;
 
-      const fileStream = createWriteStream(outputPath);
+      // Write to a temp path and hash while streaming so the final
+      // filename is never exposed until the content is fully received.
+      const tempPath = `${outputPath}.part`;
+      const fileStream = createWriteStream(tempPath);
+      const hash = createHash('sha256');
 
       let downloaded = 0;
       const reader = response.body.getReader();
@@ -87,6 +96,7 @@ async function downloadFile(url, outputPath, retries = MAX_RETRIES) {
         if (done) break;
 
         downloaded += value.length;
+        hash.update(value);
         fileStream.write(value);
 
         if (totalSize > 0) {
@@ -97,10 +107,16 @@ async function downloadFile(url, outputPath, retries = MAX_RETRIES) {
         }
       }
 
-      fileStream.end();
+      await new Promise((resolve, reject) => {
+        fileStream.end(resolve);
+        fileStream.on('error', reject);
+      });
       process.stdout.write('\n');
 
-      return { size: downloaded };
+      // Atomically publish the file only after it is fully downloaded and hashed.
+      await rename(tempPath, outputPath);
+
+      return { size: downloaded, sha256: hash.digest('hex') };
     } catch (error) {
       if (attempt === retries) {
         throw error;
@@ -131,7 +147,16 @@ async function downloadPlatform(version, platform, downloadDir, cachedUrl) {
   try {
     const result = await downloadFile(url, outputPath);
     console.log(chalk.green(`✅ Downloaded ${platform.label} (${(result.size / 1024 / 1024).toFixed(2)} MB)`));
-    return { platform: platformKey(platform), success: true, size: result.size };
+
+    // Record the checksum immediately so an integrity record exists as soon
+    // as the file is written, rather than relying solely on a later, separate step.
+    const checksumsPath = join(downloadDir, 'checksums.json');
+    let checksums = {};
+    try { checksums = JSON.parse(await readFile(checksumsPath, 'utf-8')); } catch { /* none yet */ }
+    checksums[platformKey(platform)] = result.sha256;
+    await writeFile(checksumsPath, JSON.stringify(checksums, null, 2));
+
+    return { platform: platformKey(platform), success: true, size: result.size, sha256: result.sha256 };
   } catch (error) {
     console.error(chalk.red(`❌ Failed to download ${platform.label}: ${error.message}`));
     return { platform: platformKey(platform), success: false, error: error.message };
